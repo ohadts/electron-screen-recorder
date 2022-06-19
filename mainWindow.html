@@ -1,0 +1,132 @@
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Screen recorder</title>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bulma@0.8.0/css/bulma.min.css"
+        />
+        <script defer src="render.js"></script>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                padding: 0;
+                margin: 0;
+                }
+
+
+            video {
+                width: 100%;
+                height: auto;
+                }
+
+            body {
+                text-align: center;
+                padding-top: 20px;
+                }
+        </style>
+
+        <script>
+
+            let mediaRecorder; // MediaRecorder instance to capture footage
+            const recordedChunks = [];
+
+            const handleSourceSelection = async(sourceId)=>{
+                const videoElement = document.querySelector('video');
+
+                // Captures all recorded chunks
+                function handleDataAvailable(e) { 
+                    console.log('video data available');
+                    recordedChunks.push(e.data);
+                }
+
+                // Saves the video file on stop
+                async function handleStop(e) {
+                    const blob = new Blob(recordedChunks, {
+                        type: 'video/webm; codecs=vp9'
+                    });
+                    const buffer = electron.BufferFrom(await blob.arrayBuffer());
+
+                    const {filePath, canceled} = await electron.showSaveDialog();
+                    if (!canceled && filePath) {
+                        electron.writeFile(filePath, buffer, () => console.log('video saved successfully!'));
+                    }
+                }
+
+                const constraints = {
+                    audio: false,
+                    video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: sourceId
+                    }
+                    }
+                };
+
+                // Create a Stream
+                const stream = await navigator.mediaDevices
+                    .getUserMedia(constraints);
+
+                // Preview the source in a video element
+                videoElement.srcObject = stream;
+                videoElement.play();
+
+                // Create the Media Recorder
+                const options = { mimeType: 'video/webm; codecs=vp9' };
+                mediaRecorder = new MediaRecorder(stream, options);
+
+                // Register Event Handlers
+                mediaRecorder.ondataavailable = handleDataAvailable;
+                mediaRecorder.onstop = handleStop;
+                
+            }
+
+            window.addEventListener('load',async ()=>{
+                const startBtn = document.getElementById('startBtn');
+                const stopBtn = document.getElementById('stopBtn');
+
+                const sourceSelect = document.getElementById('sourceSelect');
+                const inputSources = await electron.getStreamSources();
+                inputSources.forEach(source => {
+                    const option = document.createElement("option");
+                    option.text = source.name;
+                    option.value = source.id;
+                    sourceSelect.add(option); 
+                });
+
+                handleSourceSelection(sourceSelect.value);
+                sourceSelect.onchange=(ev)=>{
+                    handleSourceSelection(sourceSelect.value);
+                }
+
+
+
+                startBtn.onclick = e => {
+                    mediaRecorder.start();
+                    startBtn.classList.add('is-danger');
+                    startBtn.innerText = 'Recording';
+                };
+
+                stopBtn.onclick = e => {
+                    mediaRecorder.stop();
+                    startBtn.classList.remove('is-danger');
+                    startBtn.innerText = 'Start';
+                };
+            })
+ 
+        </script>
+
+      </head>
+    <body>
+        <h1>Screen recorder</h1>
+        <video></video>
+        <button id="startBtn" class="button is-primary">Start</button>
+        <button id="stopBtn" class="button is-warning">Stop</button>
+
+        <hr />
+
+        <select id="sourceSelect">
+            
+        </select>
+    </body>
+</html>
